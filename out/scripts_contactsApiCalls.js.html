@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: scripts/contactsApiCalls.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: scripts/contactsApiCalls.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Initializes the current user by fetching user data and finding the logged-in user
+ */
+const initializeCurrentUser = async () => {
+  if (!currentUser) {
+    currentUser = Object.entries(await (await fetch(BASE_URL_USERS)).json())
+      .map(([id, user]) => ({ id, ...user }))
+      .find((user) => user.name === loggedInUser.username);
+  }
+  return currentUser;
+};
+
+/**
+ * Adds a new contact to the Firebase Realtime Database for the current user.
+ *
+ * Sends a PUT request to the database, storing the provided contact object
+ * under the path `/contacts/{currentUser.id}/{nextKey}.json` where nextKey is
+ * the highest existing firebaseKey + 1, but skips 10000 (guest key).
+ *
+ * @async
+ * @param {Object} contact - The contact object to be added to the database.
+ * @returns {Promise&lt;void>} A promise that resolves when the contact has been added.
+ */
+const putNewContactToDatabase = async (contact) => {
+  const filteredKeys = firebaseKeys.filter((key) => key !== 10000);
+  let newKey = filteredKeys.length > 0 ? Math.max(...filteredKeys) + 1 : 1;
+  newKey === 10000 ? (newKey = 10001) : (newKey = newKey);
+  await fetch(`${BASE_URL}contacts/${currentUser.id}/${newKey}.json`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(contact),
+  });
+  await showContacts();
+};
+
+/**
+ * Updates an existing contact in the Firebase Realtime Database with the provided edited contact data.
+ *
+ * @async
+ * @function
+ * @param {Object} editedContact - The updated contact data to be saved in the database.
+ * @param {Object} contact - The original contact object, containing at least the `firebaseKey` property.
+ * @returns {Promise&lt;void>} A promise that resolves when the contact has been updated in the database.
+ */
+const putEditedContactToDatabase = async (editedContact, contact) => {
+  await fetch(`${BASE_URL}contacts/${currentUser.id}/${contact.firebaseKey}.json`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(editedContact),
+  });
+  showEditSuccessMessage();
+};
+
+/**
+ * Deletes the currently selected contact from the Firebase database.
+ *
+ * This function retrieves the contact name from the DOM, finds the corresponding contact object,
+ * and sends a DELETE request to remove the contact from the database. After deletion, it clears
+ * the contact details section in the UI and refreshes the contact list.
+ *
+ * @async
+ * @function
+ * @returns {Promise&lt;void>} Resolves when the contact has been deleted and the UI updated.
+ */
+const deleteContactFromDatabase = async () => {
+  const contactName = document.querySelector(".contact-information-username").innerText;
+  const contact = contacts.find((contact) => contact.name === contactName);
+  await fetch(`${BASE_URL}contacts/${currentUser.id}/${contact.firebaseKey}.json`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  finishEdit();
+  hideContactDetails();
+  showDeleteSuccessMessage();
+};
+
+/**
+ * Displays the contact details header as an overlay.
+ *
+ * This function makes the `#header-contacts` element visible and positions it
+ * as a fixed overlay between 8vh from the top and 10vh from the bottom of the viewport.
+ * It also sets styling such as background color and z-index to ensure it appears
+ * above other content. Additionally, it reveals the "leave contact details" button.
+ *
+ * @function popUpContactDetails
+ * @returns {void} - No return value, modifies DOM elements directly.
+ */
+const popUpContactDetails = () => {
+  const header = document.getElementById("header-contacts");
+  if (header) {
+    header.style.display = "flex";
+    header.style.position = "fixed";
+    header.style.top = "8vh";
+    header.style.bottom = "10vh";
+    header.style.left = "0";
+    header.style.right = "0";
+    header.style.backgroundColor = "rgb(246, 247, 248)";
+    document.getElementById("leave-contact-details-btn").classList.remove("hide");
+  }
+};
+
+/**
+ * Hides the contact details section by setting its display style to "none".
+ * Targets the element with the ID "header-contacts".
+ */
+const hideContactDetails = () => {
+  document.getElementById("header-contacts").style.display = "none";
+};
+
+/**
+ * Validates a German phone number.
+ *
+ * Accepts numbers starting with +49, 0049, or 0, followed by a valid mobile prefix (15, 16, or 17) and 7-8 digits.
+ *
+ * @param {string} phone - The phone number to validate.
+ * @returns {boolean} True if the phone number is valid, false otherwise.
+ */
+const validatePhoneNumber = (phone) => {
+  const phoneRegex = /^\+?[1-9]\d{7,14}$/;
+  if (!phoneRegex.test(phone)) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Finalizes the contact editing process by clearing the contact details display,
+ * closing the edit overlay, resetting the edit form, and refreshing the contact list.
+ */
+const finishEdit = () => {
+  document.getElementById("contactDetails").innerHTML = "";
+  closeEditOverlay();
+  clearEditForm();
+  showContacts();
+};
+
+/**
+ * Scrolls to a specific contact in the contacts list
+ * @param {string} contactName - The name of the contact to scroll to
+ */
+const scrollToNewContact = (newContact) => {
+  const initials = newContact.name.split(" ")[0][0] + newContact.name.split(" ")[1][0];
+  const contact = document.querySelector(`[data-contact="${newContact.name}"]`);
+  const contactData = contacts.find((c) => c.name === newContact.name);
+  const contactIconId = ((contactData.firebaseKey - 1) % 15) + 1;
+  contact.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+  });
+  showContactsDetails(initials, newContact.name, newContact.email, newContact.phone, contactIconId, contact);
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addContactToDatabase">addContactToDatabase</a></li><li><a href="global.html#addDisplayToContent">addDisplayToContent</a></li><li><a href="global.html#addNewSubtask">addNewSubtask</a></li><li><a href="global.html#addNewSubtaskRender">addNewSubtaskRender</a></li><li><a href="global.html#addSubtask">addSubtask</a></li><li><a href="global.html#addSubtaskRenderDiv">addSubtaskRenderDiv</a></li><li><a href="global.html#addTaskInit">addTaskInit</a></li><li><a href="global.html#allowDrop">allowDrop</a></li><li><a href="global.html#boardInit">boardInit</a></li><li><a href="global.html#bubblingPrevention">bubblingPrevention</a></li><li><a href="global.html#buildTicket">buildTicket</a></li><li><a href="global.html#cacheFirebaseKeys">cacheFirebaseKeys</a></li><li><a href="global.html#calculateSubtaskCounter">calculateSubtaskCounter</a></li><li><a href="global.html#changeDropDownArrow">changeDropDownArrow</a></li><li><a href="global.html#checkEditedValues">checkEditedValues</a></li><li><a href="global.html#checkEmail">checkEmail</a></li><li><a href="global.html#checkLoginData">checkLoginData</a></li><li><a href="global.html#checkLoginValues">checkLoginValues</a></li><li><a href="global.html#checkNewEditedValues">checkNewEditedValues</a></li><li><a href="global.html#checkRequiredInput">checkRequiredInput</a></li><li><a href="global.html#checkRequiredInputCategory">checkRequiredInputCategory</a></li><li><a href="global.html#checkRequiredInputTaskDate">checkRequiredInputTaskDate</a></li><li><a href="global.html#checkRequiredInputTaskTitle">checkRequiredInputTaskTitle</a></li><li><a href="global.html#checkSignUpValues">checkSignUpValues</a></li><li><a href="global.html#checkTicketsForToggle">checkTicketsForToggle</a></li><li><a href="global.html#checkUserDataInput">checkUserDataInput</a></li><li><a href="global.html#checkValidEmail">checkValidEmail</a></li><li><a href="global.html#clearContactForm">clearContactForm</a></li><li><a href="global.html#clearEditForm">clearEditForm</a></li><li><a href="global.html#clearSubtaskValue">clearSubtaskValue</a></li><li><a href="global.html#clearTask">clearTask</a></li><li><a href="global.html#clearValidationFeedback">clearValidationFeedback</a></li><li><a href="global.html#closeAddContactOverlay">closeAddContactOverlay</a></li><li><a href="global.html#closeDropDowns">closeDropDowns</a></li><li><a href="global.html#closeEditOverlay">closeEditOverlay</a></li><li><a href="global.html#closeTicketAndRefresh">closeTicketAndRefresh</a></li><li><a href="global.html#closeViaOverlay">closeViaOverlay</a></li><li><a href="global.html#confirmEditedSubtask">confirmEditedSubtask</a></li><li><a href="global.html#confirmEditedSubtaskInEditMenu">confirmEditedSubtaskInEditMenu</a></li><li><a href="global.html#confirmEditedSubtaskInEditMenuRender">confirmEditedSubtaskInEditMenuRender</a></li><li><a href="global.html#confirmEditedSubtaskRender">confirmEditedSubtaskRender</a></li><li><a href="global.html#contactsInit">contactsInit</a></li><li><a href="global.html#createNewTicket">createNewTicket</a></li><li><a href="global.html#createUserIcons">createUserIcons</a></li><li><a href="global.html#defineTicketDetailVariables">defineTicketDetailVariables</a></li><li><a href="global.html#deleteContactFromDatabase">deleteContactFromDatabase</a></li><li><a href="global.html#deleteSubtask">deleteSubtask</a></li><li><a href="global.html#deleteTicket">deleteTicket</a></li><li><a href="global.html#dropDownUsers">dropDownUsers</a></li><li><a href="global.html#editSubtask">editSubtask</a></li><li><a href="global.html#editSubtaskInEditMenu">editSubtaskInEditMenu</a></li><li><a href="global.html#editSubtaskInEditMenuRender">editSubtaskInEditMenuRender</a></li><li><a href="global.html#editSubtaskRender">editSubtaskRender</a></li><li><a href="global.html#editTicket">editTicket</a></li><li><a href="global.html#endDragging">endDragging</a></li><li><a href="global.html#escapeQuotes">escapeQuotes</a></li><li><a href="global.html#fetchChangedTicket">fetchChangedTicket</a></li><li><a href="global.html#filterTickets">filterTickets</a></li><li><a href="global.html#filterUsers">filterUsers</a></li><li><a href="global.html#finishEdit">finishEdit</a></li><li><a href="global.html#getBGIndex">getBGIndex</a></li><li><a href="global.html#getColumnValue">getColumnValue</a></li><li><a href="global.html#getContactDetailsTemplate">getContactDetailsTemplate</a></li><li><a href="global.html#getContactTemplate">getContactTemplate</a></li><li><a href="global.html#getContactsData">getContactsData</a></li><li><a href="global.html#getEditOverlayContentTemplate">getEditOverlayContentTemplate</a></li><li><a href="global.html#getEditTicketSubtaskEleTemplate">getEditTicketSubtaskEleTemplate</a></li><li><a href="global.html#getEditTicketTemplate">getEditTicketTemplate</a></li><li><a href="global.html#getEditTicketUserSpansArrayTemplate">getEditTicketUserSpansArrayTemplate</a></li><li><a href="global.html#getInitialTemplate">getInitialTemplate</a></li><li><a href="global.html#getMobileNavigationButtonTemplate">getMobileNavigationButtonTemplate</a></li><li><a href="global.html#getNewUserData">getNewUserData</a></li><li><a href="global.html#getRenderTasksTemplate">getRenderTasksTemplate</a></li><li><a href="global.html#getRenderTicketDetailsSubtaskEleTemplate">getRenderTicketDetailsSubtaskEleTemplate</a></li><li><a href="global.html#getRenderTicketDetailsTemplate">getRenderTicketDetailsTemplate</a></li><li><a href="global.html#getRenderTicketDetailsUserSpansArrayTemplate">getRenderTicketDetailsUserSpansArrayTemplate</a></li><li><a href="global.html#getSelectedUsers">getSelectedUsers</a></li><li><a href="global.html#getTicketData">getTicketData</a></li><li><a href="global.html#getTicketTemplate">getTicketTemplate</a></li><li><a href="global.html#getUserDetails">getUserDetails</a></li><li><a href="global.html#getUsersData">getUsersData</a></li><li><a href="global.html#getUserspans">getUserspans</a></li><li><a href="global.html#getVariablesToRenderTickets">getVariablesToRenderTickets</a></li><li><a href="global.html#goToBoardHtml">goToBoardHtml</a></li><li><a href="global.html#greetUser">greetUser</a></li><li><a href="global.html#hideContactDetails">hideContactDetails</a></li><li><a href="global.html#hidePopUp">hidePopUp</a></li><li><a href="global.html#highlightDrop">highlightDrop</a></li><li><a href="global.html#highlightPageInNav">highlightPageInNav</a></li><li><a href="global.html#hoverButtons">hoverButtons</a></li><li><a href="global.html#includeHTML">includeHTML</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initializeCurrentUser">initializeCurrentUser</a></li><li><a href="global.html#iterateContacts">iterateContacts</a></li><li><a href="global.html#iterateThroughUsersForVisualization">iterateThroughUsersForVisualization</a></li><li><a href="global.html#iterateUsers">iterateUsers</a></li><li><a href="global.html#loadNavigationAndGreetUser">loadNavigationAndGreetUser</a></li><li><a href="global.html#loadNavigationAndSetInitials">loadNavigationAndSetInitials</a></li><li><a href="global.html#loginAsGuest">loginAsGuest</a></li><li><a href="global.html#messageMissingConfirmPassword">messageMissingConfirmPassword</a></li><li><a href="global.html#messageMissingName">messageMissingName</a></li><li><a href="global.html#messageMissingPassword">messageMissingPassword</a></li><li><a href="global.html#minDate">minDate</a></li><li><a href="global.html#mobileMoveTo">mobileMoveTo</a></li><li><a href="global.html#moveTo">moveTo</a></li><li><a href="global.html#openAddContactOverlay">openAddContactOverlay</a></li><li><a href="global.html#openEditOverlay">openEditOverlay</a></li><li><a href="global.html#openEditOverlayWithBubblingPrevention">openEditOverlayWithBubblingPrevention</a></li><li><a href="global.html#overlayValidation">overlayValidation</a></li><li><a href="global.html#popUpAccNav">popUpAccNav</a></li><li><a href="global.html#popUpAddTask">popUpAddTask</a></li><li><a href="global.html#popUpContactDetails">popUpContactDetails</a></li><li><a href="global.html#popUpDropDownCategory">popUpDropDownCategory</a></li><li><a href="global.html#popUpDropDownUsersInBoard">popUpDropDownUsersInBoard</a></li><li><a href="global.html#putEditedContactToDatabase">putEditedContactToDatabase</a></li><li><a href="global.html#putEditedTaskToFirebase">putEditedTaskToFirebase</a></li><li><a href="global.html#putNewContactToDatabase">putNewContactToDatabase</a></li><li><a href="global.html#queryThroughListElements">queryThroughListElements</a></li><li><a href="global.html#removeHideOnInput">removeHideOnInput</a></li><li><a href="global.html#removeHighlight">removeHighlight</a></li><li><a href="global.html#removeHoverButtons">removeHoverButtons</a></li><li><a href="global.html#removeNameErrorMessage">removeNameErrorMessage</a></li><li><a href="global.html#removeUserfromLocalStorage">removeUserfromLocalStorage</a></li><li><a href="global.html#renderAllTickets">renderAllTickets</a></li><li><a href="global.html#renderCheckedUsers">renderCheckedUsers</a></li><li><a href="global.html#renderContacts">renderContacts</a></li><li><a href="global.html#renderHTMLElementsForEditing">renderHTMLElementsForEditing</a></li><li><a href="global.html#renderIcons">renderIcons</a></li><li><a href="global.html#renderSelectedUsers">renderSelectedUsers</a></li><li><a href="global.html#renderSubtaskProgress">renderSubtaskProgress</a></li><li><a href="global.html#renderTasks">renderTasks</a></li><li><a href="global.html#renderTicketDetails">renderTicketDetails</a></li><li><a href="global.html#renderTicketOverlay">renderTicketOverlay</a></li><li><a href="global.html#renderTickets">renderTickets</a></li><li><a href="global.html#resetPriority">resetPriority</a></li><li><a href="global.html#saveChangedTicketInFirbase">saveChangedTicketInFirbase</a></li><li><a href="global.html#saveEditedContactToDatabase">saveEditedContactToDatabase</a></li><li><a href="global.html#saveEditedTaskToFirebase">saveEditedTaskToFirebase</a></li><li><a href="global.html#saveTaskToFirebase">saveTaskToFirebase</a></li><li><a href="global.html#saveTaskToFirebasePassalong">saveTaskToFirebasePassalong</a></li><li><a href="global.html#saveTicketData">saveTicketData</a></li><li><a href="global.html#saveUserToFirebase">saveUserToFirebase</a></li><li><a href="global.html#saveUserToLocalStorage">saveUserToLocalStorage</a></li><li><a href="global.html#scrollToNewContact">scrollToNewContact</a></li><li><a href="global.html#setCategory">setCategory</a></li><li><a href="global.html#setGlobalEditInformation">setGlobalEditInformation</a></li><li><a href="global.html#setNameError">setNameError</a></li><li><a href="global.html#setPriority">setPriority</a></li><li><a href="global.html#setProfileInitials">setProfileInitials</a></li><li><a href="global.html#showAddSuccessMessage">showAddSuccessMessage</a></li><li><a href="global.html#showContacts">showContacts</a></li><li><a href="global.html#showContactsDetails">showContactsDetails</a></li><li><a href="global.html#showDeleteSuccessMessage">showDeleteSuccessMessage</a></li><li><a href="global.html#showEditSuccessMessage">showEditSuccessMessage</a></li><li><a href="global.html#showPopUp">showPopUp</a></li><li><a href="global.html#showSuccessAnimationAndRedirect">showSuccessAnimationAndRedirect</a></li><li><a href="global.html#signUpUser">signUpUser</a></li><li><a href="global.html#sortContactByInitials">sortContactByInitials</a></li><li><a href="global.html#spliceEditSubArray">spliceEditSubArray</a></li><li><a href="global.html#startDragging">startDragging</a></li><li><a href="global.html#summaryInit">summaryInit</a></li><li><a href="global.html#switchEditInfoMenu">switchEditInfoMenu</a></li><li><a href="global.html#switchPasswordIcon">switchPasswordIcon</a></li><li><a href="global.html#switchPasswordVisibility">switchPasswordVisibility</a></li><li><a href="global.html#takeOverEditedTicket">takeOverEditedTicket</a></li><li><a href="global.html#ticketTemplate">ticketTemplate</a></li><li><a href="global.html#toggleCategoryDropdown">toggleCategoryDropdown</a></li><li><a href="global.html#toggleNoTaskContainer">toggleNoTaskContainer</a></li><li><a href="global.html#toggleSubtask">toggleSubtask</a></li><li><a href="global.html#toogleInputMenu">toogleInputMenu</a></li><li><a href="global.html#uncheckAllUserIcons">uncheckAllUserIcons</a></li><li><a href="global.html#updateTicketCounter">updateTicketCounter</a></li><li><a href="global.html#updateTicketParameters">updateTicketParameters</a></li><li><a href="global.html#updateUIAfterDelete">updateUIAfterDelete</a></li><li><a href="global.html#userDropDownTemplate">userDropDownTemplate</a></li><li><a href="global.html#validateEmail">validateEmail</a></li><li><a href="global.html#validateFullName">validateFullName</a></li><li><a href="global.html#validatePhoneNumber">validatePhoneNumber</a></li><li><a href="global.html#wrongPassword">wrongPassword</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Wed Oct 08 2025 13:55:24 GMT+0200 (Mitteleuropäische Sommerzeit)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

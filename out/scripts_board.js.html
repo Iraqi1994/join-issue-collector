@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: scripts/board.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: scripts/board.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const popup = document.getElementById("add-task-pop-up");
+const popuptask = document.getElementById("board-task-pop-up");
+const overlay = document.getElementById("board-overlay");
+const currentDate = new Date();
+const year = currentDate.getFullYear();
+const month = currentDate.getMonth() + 1;
+const day = currentDate.getDate();
+const today = `${year}-${month.length === 2 ? month : "0" + month}-${day}`;
+let subtaskCount = 0;
+let subtaskWidth = 0;
+let subtaskEditArray = [];
+let dataTicketIndex;
+let dataTicketCounterId;
+let dataMode;
+let getTickets = localStorage.getItem("tickets");
+let allTickets = JSON.parse(getTickets);
+
+/**
+ * Extracts and prepares all necessary variables from a ticket object
+ * to be used for rendering in the board UI.
+ *
+ * @param {Object} ticket - The ticket object
+ *
+ * @returns {Object} An object with prepared ticket variables
+ * @returns {Array} returns.subtasks - The ticket subtasks
+ * @returns {string} returns.columnId - The formatted DOM column ID
+ * @returns {string} returns.columnValue - The original column value
+ * @returns {string} returns.title - The ticket title
+ * @returns {string} returns.description - The ticket description
+ * @returns {string} returns.category - The ticket category
+ * @returns {string} returns.categoryCss - Category formatted for CSS usage
+ * @returns {string[]} returns.assignedTo - Assigned users
+ * @returns {string[]} returns.priority - Ticket priority
+ * @returns {string|number} returns.ticketCounterId - Unique ticket ID
+ */
+function getVariablesToRenderTickets(ticket) {
+  const columnId = `${ticket.column.replace(" ", "-").toLowerCase()}-div`;
+  let columnValue = ticket.column;
+  let description = ticket.description || "";
+  let title = ticket.title;
+  let category = ticket.category;
+  let categoryCss = ticket.category.replace(" ", "-").toLowerCase();
+  let assignedTo = ticket.assignedTo || [];
+  let priority = ticket.priority || [];
+  let subtasks = ticket.subtask || [];
+  let ticketCounterId = ticket.id;
+  return { subtasks, columnId, title, description, category, categoryCss, assignedTo, priority, ticketCounterId, columnValue };
+}
+
+/**
+ * Calculates the number of checked subtasks and the completion percentage.
+ * Updates the global variables `subtaskCount` and `subtaskWidth` accordingly.
+ *
+ * @param {Array&lt;{checked: boolean}>} subtasks - An array of subtask objects, each with a `checked` property.
+ */
+function calculateSubtaskCounter(subtasks) {
+  subtaskCount = 0;
+  subtaskWidth = 0;
+  if (subtasks[0]) {
+    subtasks.forEach((ele) => {
+      if (ele.checked) {
+        subtaskCount++;
+      }
+    });
+    subtaskWidth = (subtaskCount / subtasks.length) * 100;
+  }
+}
+
+/**
+ * Toggles the display of an HTML element based on the length of the provided column value.
+ *
+ * If the column value is empty, the element with the specified ID will be shown (display set to "block").
+ * Otherwise, the element will be hidden (display set to "none").
+ *
+ * @param {string} column - The value to check for toggling the display.
+ * @param {string|number} id - The ID of the HTML element to show or hide.
+ */
+function checkTicketsForToggle(column, id) {
+  if (`${column}`.length == 0) {
+    document.getElementById(`${id}`).style.display = "block";
+  } else {
+    document.getElementById(`${id}`).style.display = "none";
+  }
+}
+
+/**
+ * This function filters the tickets based on the search input
+ * Only triggers rendering when at least 3 characters are typed
+ * or when clearing the search (going from 3+ chars to less than 3)
+ */
+function filterTickets() {
+  const searchInput = document.getElementById("searchbar").value.toLowerCase();
+  const tickets = JSON.parse(localStorage.getItem("tickets")) || [];
+  if (!filterTickets.previousLength) filterTickets.previousLength = 0;
+  if (searchInput.length >= 3) {
+    let filteredTickets = tickets.filter((ticket) => ticket.title.toLowerCase().includes(searchInput) || ticket.description.toLowerCase().includes(searchInput));
+    renderTickets(filteredTickets);
+    filterTickets.previousLength = searchInput.length;
+  } else if (filterTickets.previousLength >= 3) {
+    renderTickets(tickets);
+    filterTickets.previousLength = searchInput.length;
+  } else {
+    filterTickets.previousLength = searchInput.length;
+  }
+}
+
+/**
+ * Defines and prepares ticket detail variables for viewing or editing a ticket.
+ *
+ * @async
+ * @param {Array&lt;Object>} ticket - Array of ticket objects.
+ * @param {string} mode - The mode of operation, either "view" or "edit".
+ * @param {number} index - The index of the ticket to process in the ticket array.
+ * @returns {Promise&lt;void>} Resolves when the operation is complete.
+ */
+async function defineTicketDetailVariables(ticket, mode, index, ticketCounterId) {
+  let category = ticket[index].category;
+  let categoryColor = ticket[index].category.toLowerCase().replace(" ", "-");
+  let title = ticket[index].title;
+  let description = ticket[index].description || [];
+  let dateForEditOverlay = ticket[index].date;
+  let date = ticket[index].date.split("-");
+  let formattedDate = `${date[2]}/${date[1]}/${date[0]}`;
+  let priority = ticket[index].priority || "-";
+  let assignedTo = ticket[index].assignedTo || [];
+  let subtasks = ticket[index].subtask || [];
+  if (mode === "view") renderTicketDetails(category, categoryColor, title, description, formattedDate, priority, assignedTo, subtasks, index, ticketCounterId);
+  else if (mode === "edit") editTicket(title, description, dateForEditOverlay, priority, assignedTo, subtasks, index, mode, ticketCounterId);
+}
+
+/**
+ * Checks and retrieves edited values from input fields for a ticket,
+ * then updates the ticket with the new values.
+ *
+ * @param {HTMLElement} ele - The element representing the ticket being edited.
+ *                            Must have a `dataset.ticketindex` property.
+ */
+async function checkEditedValues(ele, className) {
+  let index = ele.dataset.ticketindex;
+  let title = "";
+  let description = "";
+  let date;
+  let ticketCounterId = ele.dataset.ticketcounterid;
+  if (document.getElementById("task-title-edit").value) title = document.getElementById("task-title-edit").value;
+  if (document.getElementById("task-description-edit").value) description = document.getElementById("task-description-edit").value;
+  if (document.getElementById("task-date-edit").value) date = document.getElementById("task-date-edit").value;
+  ele.dataset.mode = "view";
+  return takeOverEditedTicket(ele, index, title, description, date, ticketCounterId, className);
+}
+
+/**
+ * Updates a ticket with edited values and saves it to Firebase.
+ *
+ * @param {HTMLElement} ele - The DOM element representing the ticket.
+ * @param {number} index - The index of the ticket to edit.
+ * @param {string} [titleEdit] - The new title for the ticket (optional).
+ * @param {string} [descriptionEdit] - The new description for the ticket (optional).
+ * @param {string} [dateEdit] - The new due date for the ticket (optional).
+ *
+ * @returns {void}
+ */
+function takeOverEditedTicket(ele, index, titleEdit, descriptionEdit, dateEdit, ticketCounterId, className) {
+  let editedTicket = {};
+  checkNewEditedValues(titleEdit, editedTicket, descriptionEdit, dateEdit);
+  editedTicket.priority = buttonPriority;
+  let selectedUsers = getSelectedUsers(className);
+  editedTicket.assignedTo = selectedUsers;
+  let originalTicket = allTickets[index];
+  let originalSubtasks = originalTicket?.subtask || [];
+  subtaskArray = [];
+  queryThroughListElements(originalSubtasks);
+  editedTicket.subtask = subtaskArray;
+  return saveEditedTaskToFirebase(ele, index, editedTicket, ticketCounterId);
+}
+
+/**
+ * Collects all subtask list items from the DOM and updates the subtask array.
+ *
+ * Iterates through elements with the class `.subtask-li`, extracts their text,
+ * checks whether they already exist in the provided original subtasks, and
+ * determines their checked state. Each subtask is then pushed into the global
+ * `subtaskArray`.
+ *
+ * @function queryThroughListElements
+ * @param {Array&lt;{text: string, checked: boolean}>} originalSubtasks -
+ *        The original list of subtasks with their checked states.
+ * @returns {void}
+ */
+function queryThroughListElements(originalSubtasks) {
+  document.querySelectorAll(".subtask-li").forEach((li) => {
+    let text = li.innerText.trim();
+    let existing = originalSubtasks.find((s) => s.text === text);
+    let isChecked = existing ? existing.checked : false;
+    subtaskArray.push({ text, checked: isChecked });
+  });
+}
+
+/**
+ * Updates the properties of a ticket object with new edited values.
+ *
+ * Only updates the ticket fields if the corresponding edited values are provided.
+ *
+ * @function checkNewEditedValues
+ * @param {string} titleEdit - The new title for the ticket (if provided).
+ * @param {Object} editedTicket - The ticket object to update.
+ * @param {string} descriptionEdit - The new description for the ticket (if provided).
+ * @param {string} dateEdit - The new date for the ticket (if provided).
+ * @returns {void}
+ */
+function checkNewEditedValues(titleEdit, editedTicket, descriptionEdit, dateEdit) {
+  if (titleEdit) editedTicket.title = titleEdit;
+  if (descriptionEdit) editedTicket.description = descriptionEdit;
+  if (dateEdit) editedTicket.date = dateEdit;
+}
+
+/**
+ * Updates a ticket in Firebase with the provided edited data and re-renders the ticket overlay.
+ *
+ * @async
+ * @param {HTMLElement} ele - The DOM element associated with the ticket being edited.
+ * @param {number|string} index - The unique identifier or index of the ticket to update.
+ * @param {Object} ticketData - The updated ticket data to be saved to Firebase.
+ * @returns {Promise&lt;void>} Resolves when the ticket is successfully updated and UI is refreshed.
+ */
+async function saveEditedTaskToFirebase(ele, index, ticketData, ticketCounterId) {
+  try {
+    let response = await fetch(`https://join-3193b-default-rtdb.europe-west1.firebasedatabase.app/tickets/ticket/${ticketCounterId}.json`);
+    let updatedTicket = await updateTicketParameters(response, ticketData);
+    await putEditedTaskToFirebase(ticketCounterId, updatedTicket);
+    renderTicketOverlay(ele);
+    await getTicketData();
+    renderTickets();
+  } catch (error) {
+    console.error("Fehler beim Speichern:", error);
+  }
+}
+
+/**
+ * Updates a specific ticket in Firebase with the provided edited data.
+ *
+ * Sends a PUT request to the Firebase Realtime Database to overwrite
+ * the ticket identified by `ticketCounterId` with the `updatedTicket` object.
+ *
+ * @async
+ * @function putEditedTaskToFirebase
+ * @param {string|number} ticketCounterId - The unique ID of the ticket to update.
+ * @param {Object} updatedTicket - The ticket object containing updated values.
+ * @returns {Promise&lt;void>} - Resolves when the ticket has been successfully updated.
+ */
+async function putEditedTaskToFirebase(ticketCounterId, updatedTicket) {
+  await fetch(`https://join-3193b-default-rtdb.europe-west1.firebasedatabase.app/tickets/ticket/${ticketCounterId}.json`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(updatedTicket),
+  });
+}
+
+/**
+ * Merges existing ticket data from a fetch response with new ticket updates.
+ *
+ * Retrieves the ticket object from the provided response, then creates
+ * a new object combining the existing ticket properties with the updated
+ * values from `ticketData`. Returns the merged ticket object.
+ *
+ * @async
+ * @function updateTicketParameters
+ * @param {Response} response - The fetch response containing the current ticket data in JSON format.
+ * @param {Object} ticketData - An object containing updated ticket properties.
+ * @returns {Promise&lt;Object>} A promise that resolves to the updated ticket object.
+ */
+async function updateTicketParameters(response, ticketData) {
+  let ticket = await response.json();
+  let updatedTicket = {
+    ...ticket,
+    ...ticketData,
+  };
+  return updatedTicket;
+}
+
+/**
+ * Adds a new subtask to the subtask list by appending a new &lt;li> element
+ * containing the value from the input field with id "edit-subtask" to the
+ * element with id "subtask-edit-render".
+ */
+function addNewSubtask() {
+  subtaskEditArray.push(document.getElementById("edit-subtask").value);
+  if (document.getElementById("edit-subtask").value.trim() !== "") {
+    document.getElementById("subtask-render-div").innerHTML += addNewSubtaskRender();
+  }
+  document.getElementById("edit-subtask").value = "";
+}
+
+/**
+ * Deletes a ticket from the Firebase database by its index and updates the UI.
+ *
+ * @async
+ * @function
+ * @param {number|string} index - The index or ID of the ticket to delete.
+ * @returns {Promise&lt;void>} Resolves when the ticket is deleted and the UI is updated.
+ * @throws Will log an error to the console if the deletion fails.
+ */
+async function deleteTicket(index) {
+  try {
+    await fetch(`https://join-3193b-default-rtdb.europe-west1.firebasedatabase.app/tickets/ticket/${index}.json`, {
+      method: "DELETE",
+    });
+    updateUIAfterDelete(index);
+  } catch (error) {
+    console.error("Fehler beim Löschen des Tickets:", error);
+  }
+}
+
+/**
+ * Updates the UI and data after deleting a ticket at the specified index.
+ * Hides relevant overlays and pop-ups, removes the ticket from the data structure,
+ * updates local storage, and re-renders the tickets.
+ *
+ * @param {number} index - The index or ID of the ticket to delete.
+ */
+function updateUIAfterDelete(index) {
+  overlay.classList.add("hide");
+  document.getElementById("board-task-pop-up").classList.add("hide");
+  delete allTickets[index];
+  allTickets = allTickets.filter((t) => t.id !== index);
+  localStorage.setItem("tickets", JSON.stringify(allTickets));
+  renderTickets();
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addContactToDatabase">addContactToDatabase</a></li><li><a href="global.html#addDisplayToContent">addDisplayToContent</a></li><li><a href="global.html#addNewSubtask">addNewSubtask</a></li><li><a href="global.html#addNewSubtaskRender">addNewSubtaskRender</a></li><li><a href="global.html#addSubtask">addSubtask</a></li><li><a href="global.html#addSubtaskRenderDiv">addSubtaskRenderDiv</a></li><li><a href="global.html#addTaskInit">addTaskInit</a></li><li><a href="global.html#allowDrop">allowDrop</a></li><li><a href="global.html#boardInit">boardInit</a></li><li><a href="global.html#bubblingPrevention">bubblingPrevention</a></li><li><a href="global.html#buildTicket">buildTicket</a></li><li><a href="global.html#cacheFirebaseKeys">cacheFirebaseKeys</a></li><li><a href="global.html#calculateSubtaskCounter">calculateSubtaskCounter</a></li><li><a href="global.html#changeDropDownArrow">changeDropDownArrow</a></li><li><a href="global.html#checkEditedValues">checkEditedValues</a></li><li><a href="global.html#checkEmail">checkEmail</a></li><li><a href="global.html#checkLoginData">checkLoginData</a></li><li><a href="global.html#checkLoginValues">checkLoginValues</a></li><li><a href="global.html#checkNewEditedValues">checkNewEditedValues</a></li><li><a href="global.html#checkRequiredInput">checkRequiredInput</a></li><li><a href="global.html#checkRequiredInputCategory">checkRequiredInputCategory</a></li><li><a href="global.html#checkRequiredInputTaskDate">checkRequiredInputTaskDate</a></li><li><a href="global.html#checkRequiredInputTaskTitle">checkRequiredInputTaskTitle</a></li><li><a href="global.html#checkSignUpValues">checkSignUpValues</a></li><li><a href="global.html#checkTicketsForToggle">checkTicketsForToggle</a></li><li><a href="global.html#checkUserDataInput">checkUserDataInput</a></li><li><a href="global.html#checkValidEmail">checkValidEmail</a></li><li><a href="global.html#clearContactForm">clearContactForm</a></li><li><a href="global.html#clearEditForm">clearEditForm</a></li><li><a href="global.html#clearSubtaskValue">clearSubtaskValue</a></li><li><a href="global.html#clearTask">clearTask</a></li><li><a href="global.html#clearValidationFeedback">clearValidationFeedback</a></li><li><a href="global.html#closeAddContactOverlay">closeAddContactOverlay</a></li><li><a href="global.html#closeDropDowns">closeDropDowns</a></li><li><a href="global.html#closeEditOverlay">closeEditOverlay</a></li><li><a href="global.html#closeTicketAndRefresh">closeTicketAndRefresh</a></li><li><a href="global.html#closeViaOverlay">closeViaOverlay</a></li><li><a href="global.html#confirmEditedSubtask">confirmEditedSubtask</a></li><li><a href="global.html#confirmEditedSubtaskInEditMenu">confirmEditedSubtaskInEditMenu</a></li><li><a href="global.html#confirmEditedSubtaskInEditMenuRender">confirmEditedSubtaskInEditMenuRender</a></li><li><a href="global.html#confirmEditedSubtaskRender">confirmEditedSubtaskRender</a></li><li><a href="global.html#contactsInit">contactsInit</a></li><li><a href="global.html#createNewTicket">createNewTicket</a></li><li><a href="global.html#createUserIcons">createUserIcons</a></li><li><a href="global.html#defineTicketDetailVariables">defineTicketDetailVariables</a></li><li><a href="global.html#deleteContactFromDatabase">deleteContactFromDatabase</a></li><li><a href="global.html#deleteSubtask">deleteSubtask</a></li><li><a href="global.html#deleteTicket">deleteTicket</a></li><li><a href="global.html#dropDownUsers">dropDownUsers</a></li><li><a href="global.html#editSubtask">editSubtask</a></li><li><a href="global.html#editSubtaskInEditMenu">editSubtaskInEditMenu</a></li><li><a href="global.html#editSubtaskInEditMenuRender">editSubtaskInEditMenuRender</a></li><li><a href="global.html#editSubtaskRender">editSubtaskRender</a></li><li><a href="global.html#editTicket">editTicket</a></li><li><a href="global.html#endDragging">endDragging</a></li><li><a href="global.html#escapeQuotes">escapeQuotes</a></li><li><a href="global.html#fetchChangedTicket">fetchChangedTicket</a></li><li><a href="global.html#filterTickets">filterTickets</a></li><li><a href="global.html#filterUsers">filterUsers</a></li><li><a href="global.html#finishEdit">finishEdit</a></li><li><a href="global.html#getBGIndex">getBGIndex</a></li><li><a href="global.html#getColumnValue">getColumnValue</a></li><li><a href="global.html#getContactDetailsTemplate">getContactDetailsTemplate</a></li><li><a href="global.html#getContactTemplate">getContactTemplate</a></li><li><a href="global.html#getContactsData">getContactsData</a></li><li><a href="global.html#getEditOverlayContentTemplate">getEditOverlayContentTemplate</a></li><li><a href="global.html#getEditTicketSubtaskEleTemplate">getEditTicketSubtaskEleTemplate</a></li><li><a href="global.html#getEditTicketTemplate">getEditTicketTemplate</a></li><li><a href="global.html#getEditTicketUserSpansArrayTemplate">getEditTicketUserSpansArrayTemplate</a></li><li><a href="global.html#getInitialTemplate">getInitialTemplate</a></li><li><a href="global.html#getMobileNavigationButtonTemplate">getMobileNavigationButtonTemplate</a></li><li><a href="global.html#getNewUserData">getNewUserData</a></li><li><a href="global.html#getRenderTasksTemplate">getRenderTasksTemplate</a></li><li><a href="global.html#getRenderTicketDetailsSubtaskEleTemplate">getRenderTicketDetailsSubtaskEleTemplate</a></li><li><a href="global.html#getRenderTicketDetailsTemplate">getRenderTicketDetailsTemplate</a></li><li><a href="global.html#getRenderTicketDetailsUserSpansArrayTemplate">getRenderTicketDetailsUserSpansArrayTemplate</a></li><li><a href="global.html#getSelectedUsers">getSelectedUsers</a></li><li><a href="global.html#getTicketData">getTicketData</a></li><li><a href="global.html#getTicketTemplate">getTicketTemplate</a></li><li><a href="global.html#getUserDetails">getUserDetails</a></li><li><a href="global.html#getUsersData">getUsersData</a></li><li><a href="global.html#getUserspans">getUserspans</a></li><li><a href="global.html#getVariablesToRenderTickets">getVariablesToRenderTickets</a></li><li><a href="global.html#goToBoardHtml">goToBoardHtml</a></li><li><a href="global.html#greetUser">greetUser</a></li><li><a href="global.html#hideContactDetails">hideContactDetails</a></li><li><a href="global.html#hidePopUp">hidePopUp</a></li><li><a href="global.html#highlightDrop">highlightDrop</a></li><li><a href="global.html#highlightPageInNav">highlightPageInNav</a></li><li><a href="global.html#hoverButtons">hoverButtons</a></li><li><a href="global.html#includeHTML">includeHTML</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initializeCurrentUser">initializeCurrentUser</a></li><li><a href="global.html#iterateContacts">iterateContacts</a></li><li><a href="global.html#iterateThroughUsersForVisualization">iterateThroughUsersForVisualization</a></li><li><a href="global.html#iterateUsers">iterateUsers</a></li><li><a href="global.html#loadNavigationAndGreetUser">loadNavigationAndGreetUser</a></li><li><a href="global.html#loadNavigationAndSetInitials">loadNavigationAndSetInitials</a></li><li><a href="global.html#loginAsGuest">loginAsGuest</a></li><li><a href="global.html#messageMissingConfirmPassword">messageMissingConfirmPassword</a></li><li><a href="global.html#messageMissingName">messageMissingName</a></li><li><a href="global.html#messageMissingPassword">messageMissingPassword</a></li><li><a href="global.html#minDate">minDate</a></li><li><a href="global.html#mobileMoveTo">mobileMoveTo</a></li><li><a href="global.html#moveTo">moveTo</a></li><li><a href="global.html#openAddContactOverlay">openAddContactOverlay</a></li><li><a href="global.html#openEditOverlay">openEditOverlay</a></li><li><a href="global.html#openEditOverlayWithBubblingPrevention">openEditOverlayWithBubblingPrevention</a></li><li><a href="global.html#overlayValidation">overlayValidation</a></li><li><a href="global.html#popUpAccNav">popUpAccNav</a></li><li><a href="global.html#popUpAddTask">popUpAddTask</a></li><li><a href="global.html#popUpContactDetails">popUpContactDetails</a></li><li><a href="global.html#popUpDropDownCategory">popUpDropDownCategory</a></li><li><a href="global.html#popUpDropDownUsersInBoard">popUpDropDownUsersInBoard</a></li><li><a href="global.html#putEditedContactToDatabase">putEditedContactToDatabase</a></li><li><a href="global.html#putEditedTaskToFirebase">putEditedTaskToFirebase</a></li><li><a href="global.html#putNewContactToDatabase">putNewContactToDatabase</a></li><li><a href="global.html#queryThroughListElements">queryThroughListElements</a></li><li><a href="global.html#removeHideOnInput">removeHideOnInput</a></li><li><a href="global.html#removeHighlight">removeHighlight</a></li><li><a href="global.html#removeHoverButtons">removeHoverButtons</a></li><li><a href="global.html#removeNameErrorMessage">removeNameErrorMessage</a></li><li><a href="global.html#removeUserfromLocalStorage">removeUserfromLocalStorage</a></li><li><a href="global.html#renderAllTickets">renderAllTickets</a></li><li><a href="global.html#renderCheckedUsers">renderCheckedUsers</a></li><li><a href="global.html#renderContacts">renderContacts</a></li><li><a href="global.html#renderHTMLElementsForEditing">renderHTMLElementsForEditing</a></li><li><a href="global.html#renderIcons">renderIcons</a></li><li><a href="global.html#renderSelectedUsers">renderSelectedUsers</a></li><li><a href="global.html#renderSubtaskProgress">renderSubtaskProgress</a></li><li><a href="global.html#renderTasks">renderTasks</a></li><li><a href="global.html#renderTicketDetails">renderTicketDetails</a></li><li><a href="global.html#renderTicketOverlay">renderTicketOverlay</a></li><li><a href="global.html#renderTickets">renderTickets</a></li><li><a href="global.html#resetPriority">resetPriority</a></li><li><a href="global.html#saveChangedTicketInFirbase">saveChangedTicketInFirbase</a></li><li><a href="global.html#saveEditedContactToDatabase">saveEditedContactToDatabase</a></li><li><a href="global.html#saveEditedTaskToFirebase">saveEditedTaskToFirebase</a></li><li><a href="global.html#saveTaskToFirebase">saveTaskToFirebase</a></li><li><a href="global.html#saveTaskToFirebasePassalong">saveTaskToFirebasePassalong</a></li><li><a href="global.html#saveTicketData">saveTicketData</a></li><li><a href="global.html#saveUserToFirebase">saveUserToFirebase</a></li><li><a href="global.html#saveUserToLocalStorage">saveUserToLocalStorage</a></li><li><a href="global.html#scrollToNewContact">scrollToNewContact</a></li><li><a href="global.html#setCategory">setCategory</a></li><li><a href="global.html#setGlobalEditInformation">setGlobalEditInformation</a></li><li><a href="global.html#setNameError">setNameError</a></li><li><a href="global.html#setPriority">setPriority</a></li><li><a href="global.html#setProfileInitials">setProfileInitials</a></li><li><a href="global.html#showAddSuccessMessage">showAddSuccessMessage</a></li><li><a href="global.html#showContacts">showContacts</a></li><li><a href="global.html#showContactsDetails">showContactsDetails</a></li><li><a href="global.html#showDeleteSuccessMessage">showDeleteSuccessMessage</a></li><li><a href="global.html#showEditSuccessMessage">showEditSuccessMessage</a></li><li><a href="global.html#showPopUp">showPopUp</a></li><li><a href="global.html#showSuccessAnimationAndRedirect">showSuccessAnimationAndRedirect</a></li><li><a href="global.html#signUpUser">signUpUser</a></li><li><a href="global.html#sortContactByInitials">sortContactByInitials</a></li><li><a href="global.html#spliceEditSubArray">spliceEditSubArray</a></li><li><a href="global.html#startDragging">startDragging</a></li><li><a href="global.html#summaryInit">summaryInit</a></li><li><a href="global.html#switchEditInfoMenu">switchEditInfoMenu</a></li><li><a href="global.html#switchPasswordIcon">switchPasswordIcon</a></li><li><a href="global.html#switchPasswordVisibility">switchPasswordVisibility</a></li><li><a href="global.html#takeOverEditedTicket">takeOverEditedTicket</a></li><li><a href="global.html#ticketTemplate">ticketTemplate</a></li><li><a href="global.html#toggleCategoryDropdown">toggleCategoryDropdown</a></li><li><a href="global.html#toggleNoTaskContainer">toggleNoTaskContainer</a></li><li><a href="global.html#toggleSubtask">toggleSubtask</a></li><li><a href="global.html#toogleInputMenu">toogleInputMenu</a></li><li><a href="global.html#uncheckAllUserIcons">uncheckAllUserIcons</a></li><li><a href="global.html#updateTicketCounter">updateTicketCounter</a></li><li><a href="global.html#updateTicketParameters">updateTicketParameters</a></li><li><a href="global.html#updateUIAfterDelete">updateUIAfterDelete</a></li><li><a href="global.html#userDropDownTemplate">userDropDownTemplate</a></li><li><a href="global.html#validateEmail">validateEmail</a></li><li><a href="global.html#validateFullName">validateFullName</a></li><li><a href="global.html#validatePhoneNumber">validatePhoneNumber</a></li><li><a href="global.html#wrongPassword">wrongPassword</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Wed Oct 08 2025 13:55:24 GMT+0200 (Mitteleuropäische Sommerzeit)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
