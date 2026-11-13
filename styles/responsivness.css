@@ -314,6 +314,7 @@
     margin-right: 0;
   }
 
+  #triage-div,
   #to-do-div,
   #in-progress-div,
   #await-feedback-div,
@@ -325,6 +326,7 @@
     gap: 8px;
   }
 
+  #triage-div::-webkit-scrollbar,
   #to-do-div::-webkit-scrollbar,
   #in-progress-div::-webkit-scrollbar,
   #await-feedback-div::-webkit-scrollbar,

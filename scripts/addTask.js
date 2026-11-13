@@ -9,7 +9,7 @@ let progressColumn;
 let ticketID = 0;
 const addedUserfeedback = document.getElementById("added-userfeedback");
 let subtaskCounter = 0;
-let columnVal = "To do";
+let columnVal = "Triage";
 let ticketCounter = 0;
 let addTaskPopUp = document.getElementById("add-task-pop-up");
 let bordOverlay = document.getElementById("board-overlay");

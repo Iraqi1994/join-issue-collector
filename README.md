@@ -17,7 +17,7 @@ Join is a modern, responsive Kanban-based task and project management web applic
   - Personalized time-based greetings for logged-in users and guests.
 
 - **📋 Kanban Board**
-  - Visual column workflow: **To do**, **In progress**, **Await feedback**, and **Done**.
+  - Visual column workflow: **Triage** (backlog, where new tasks land), **To do**, **In progress**, **Await feedback**, and **Done**.
   - **Drag and Drop**: Drag tasks across workflow columns to update status instantly.
   - **Live Search**: Filter tasks dynamically by title or description.
   - **Task Overlay & Detail View**: View task categories, assigned team members, subtask progress bars, and priority levels.

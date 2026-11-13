@@ -96,13 +96,14 @@ async function fetchChangedTicket(newIndex) {
 /**
  * Generates HTML button strings for moving a ticket between board columns based on its current column.
  *
- * @param {string} columnValue - The current column name of the ticket (e.g., "To do", "In progress", "Await feedback", "done").
+ * @param {string} columnValue - The current column name of the ticket (e.g., "Triage", "To do", "In progress", "Await feedback", "done").
  * @param {number} index - The index of the ticket in the board.
  * @returns {{upBtn: string, downBtn: string}} An object containing HTML strings for the "Up" and "Down" buttons.
  */
 function getColumnValue(columnValue, index) {
   const columnConfig = {
-    "To do": { up: null, down: "In progress" },
+    Triage: { up: null, down: "To do" },
+    "To do": { up: "Triage", down: "In progress" },
     "In progress": { up: "To do", down: "Await feedback" },
     "Await feedback": { up: "In progress", down: "done" },
     done: { up: "Await feedback", down: null },

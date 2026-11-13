@@ -94,6 +94,7 @@ function switchEditInfoMenu(ele) {
  * @param {Array<Object>} [tickets] - Ticket objects (defaults to localStorage).
  */
 async function renderTickets(tickets) {
+  document.getElementById("triage-div").innerHTML = "";
   document.getElementById("to-do-div").innerHTML = "";
   document.getElementById("in-progress-div").innerHTML = "";
   document.getElementById("await-feedback-div").innerHTML = "";
@@ -186,10 +187,12 @@ function renderSubtaskProgress(index, subtasks) {
  * @param {Array<Object>} tickets - Tickets to check.
  */
 function toggleNoTaskContainer(tickets = allTickets) {
+  let allTicketsTriage = tickets.filter((obj) => obj.column == "Triage");
   let allTicketsToDo = tickets.filter((obj) => obj.column == "To do");
   let allTicketsProgress = tickets.filter((obj) => obj.column == "In progress");
   let allTicketsFeedback = tickets.filter((obj) => obj.column == "Await feedback");
   let allTicketsDone = tickets.filter((obj) => obj.column == "done");
+  checkTicketsForToggle(allTicketsTriage, "noTasksTriage");
   checkTicketsForToggle(allTicketsToDo, "noTasksToDo");
   checkTicketsForToggle(allTicketsProgress, "noTasksProgress");
   checkTicketsForToggle(allTicketsFeedback, "noTasksFeedback");
