@@ -307,7 +307,7 @@ function getMobileNavigationButtonTemplate(direction, index, targetColumn) {
  *
  * The template includes sections for:
  * - To-do and Done tasks
- * - Urgent tasks and upcoming deadlines
+ * - Urgent tasks and upcoming deadlines, with the email requests card beside them
  * - Tasks in board, in progress, and awaiting feedback
  *
  * The template expects the following variables to be defined in the scope:
@@ -315,6 +315,7 @@ function getMobileNavigationButtonTemplate(direction, index, targetColumn) {
  * - done: Number of completed tasks
  * - urgentTickets: Number of urgent tasks
  * - deadline: Upcoming deadline (string or date)
+ * - emailRequests: Number of email requests
  * - currentTickets: Array of current tickets/tasks
  * - inProgress: Number of tasks in progress
  * - awaitFeedback: Number of tasks awaiting feedback
@@ -369,18 +370,27 @@ function getRenderTasksTemplate() {
                 </div>
               </div>
             </div>
-            <div onclick="goToBoardHtml()" class="urgent-and-date task-card-base flex-center">
-              <div class="urgent flex-center">
-                <img class="urgent-icon-responsiv" src="../assets/icon/urgent-orange-icon.svg" alt="" />
-                <div>
-                  <h3>${urgentTickets}</h3>
-                  <p>Urgent</p>
+            <div class="urgent-and-email">
+              <div onclick="goToBoardHtml()" class="urgent-and-date task-card-base flex-center">
+                <div class="urgent flex-center">
+                  <img class="urgent-icon-responsiv" src="../assets/icon/urgent-orange-icon.svg" alt="" />
+                  <div>
+                    <h3>${urgentTickets}</h3>
+                    <p>Urgent</p>
+                  </div>
+                </div>
+                <img class="mobile-padding" src="../assets/icon/hyphen.svg" alt="" />
+                <div class="deadline">
+                  <h4>${deadline}</h4>
+                  <p>Upcoming Deadline</p>
                 </div>
               </div>
-              <img class="mobile-padding" src="../assets/icon/hyphen.svg" alt="" />
-              <div class="deadline">
-                <h4>${deadline}</h4>
-                <p>Upcoming Deadline</p>
+              <div class="email-requests task-card-base flex-center flex-column">
+                <h3 class="email-requests-count">${emailRequests}</h3>
+                <p>
+                  Email <br />
+                  requests
+                </p>
               </div>
             </div>
             <div onclick="goToBoardHtml()" class="tasks-in-editing">

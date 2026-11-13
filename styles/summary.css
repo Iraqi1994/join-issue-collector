@@ -98,7 +98,8 @@ p {
 .urgent-and-date,
 .tasks-in-board,
 .tasks-in-progress,
-.awaiting-feedback {
+.awaiting-feedback,
+.email-requests {
   padding: 8px;
 }
 
@@ -138,9 +139,29 @@ p {
   stroke: #2a3647;
 }
 
-.urgent-and-date {
+.urgent-and-email {
+  display: flex;
   gap: 20px;
   margin-top: 20px;
+  width: 540px;
+}
+
+.urgent-and-date {
+  gap: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+.email-requests {
+  width: 168px;
+  text-align: center;
+}
+
+.email-requests-count {
+  background: linear-gradient(90deg, #29abe2, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .urgent-and-date h4 {
@@ -255,8 +276,18 @@ p {
     margin-left: 0 !important;
   }
 
+  .urgent-and-email {
+    width: 100%;
+    max-width: 900px;
+  }
+
   .urgent-and-date {
     max-width: 900px;
+  }
+
+  .email-requests {
+    flex: 1;
+    width: auto;
   }
 
   .to-do,
@@ -323,5 +354,56 @@ p {
 @media (max-width: 625px) {
   main {
     margin-top: 4vh;
+  }
+
+  .all-tasks h3 {
+    font-size: 28px;
+  }
+
+  .all-tasks p {
+    font-size: 12px;
+  }
+
+  .to-do svg,
+  .done svg {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  .urgent-and-email {
+    gap: 12px;
+  }
+
+  .urgent-and-date {
+    flex: 2.1;
+  }
+
+  .email-requests {
+    flex: 1;
+  }
+
+  .urgent {
+    gap: 8px;
+    padding-right: 10px;
+  }
+
+  .urgent .urgent-icon-responsiv {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mobile-padding {
+    height: 40px;
+    padding-right: 8px;
+  }
+
+  .urgent-and-date h4 {
+    font-size: 12px;
+    padding-bottom: 4px;
+  }
+
+  .urgent-and-date .deadline p {
+    font-size: 10px;
   }
 }

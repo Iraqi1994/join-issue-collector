@@ -4,6 +4,7 @@ const inProgress = currentTickets.filter((ticket) => ticket.column == "In progre
 const awaitFeedback = currentTickets.filter((ticket) => ticket.column == "Await feedback").length;
 const done = currentTickets.filter((ticket) => ticket.column == "done").length;
 const urgentTickets = currentTickets.filter((ticket) => ticket.priority == "urgent").length;
+const emailRequests = 4;
 const sortedTickets = currentTickets.sort((a, b) => new Date(a.date) - new Date(b.date));
 const now = new Date();
 const upcomingTickets = sortedTickets.filter((ticket) => new Date(ticket.date) > now);
