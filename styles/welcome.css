@@ -1,0 +1,18 @@
+body {
+  background-color: #2a3647;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.welcome {
+  background-color: #ffffff;
+  padding: 56px 72px;
+  border-radius: 30px;
+  width: 789px;
+  height: 404px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
